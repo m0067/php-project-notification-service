@@ -1,0 +1,4 @@
+.idea
+.env
+/docker_config/postgres/data
+/docker_config/rabbitmq/data

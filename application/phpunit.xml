@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Integration">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_DATABASE" value="notifications_test"/>
+
+        <env name="QUEUE_CONNECTION" value="rabbitmq"/>
+        <env name="RABBITMQ_QUEUE" value="test_notifications_sms_low"/>
+        <env name="RABBITMQ_QUEUE_SMS_HIGH" value="test_notifications_sms_high"/>
+        <env name="RABBITMQ_QUEUE_SMS_LOW" value="test_notifications_sms_low"/>
+        <env name="RABBITMQ_QUEUE_EMAIL_HIGH" value="test_notifications_email_high"/>
+        <env name="RABBITMQ_QUEUE_EMAIL_LOW" value="test_notifications_email_low"/>
+
+        <env name="CACHE_STORE" value="redis"/>
+        <env name="REDIS_CACHE_DB" value="2"/>
+
+        <env name="PROVIDER_WEBHOOK_SECRET" value="test-provider-secret"/>
+    </php>
+</phpunit>

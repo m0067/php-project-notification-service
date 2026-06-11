@@ -1,0 +1,159 @@
+services:
+
+  notifications_postgresql:
+    container_name: notifications_postgresql
+    restart: always
+    image: postgres:17.10-alpine
+    volumes:
+      - ${POSTGRES_DIR}:/var/lib/postgresql/data/pgdata
+      - ./docker_config/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "10370:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
+
+  notifications_postgresql_replica:
+    container_name: notifications_postgresql_replica
+    image: postgres:17.10-alpine
+    restart: always
+    environment:
+      PGPASSWORD: ${REPLICATION_PASSWORD}
+    entrypoint: ["sh", "/usr/local/bin/replica-entrypoint.sh"]
+    volumes:
+      - ./docker_config/postgres/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+    ports:
+      - "10371:5432"
+    depends_on:
+      notifications_postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
+
+  notifications_redis:
+    container_name: notifications_redis
+    restart: always
+    image: redis:7.4.9-alpine
+    ports:
+      - "10372:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
+
+  notifications_rabbitmq:
+    container_name: notifications_rabbitmq
+    restart: always
+    image: rabbitmq:4.0-management-alpine
+    ports:
+      - "10373:5672"
+      - "10374:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST}
+    volumes:
+      - ${RABBITMQ_DIR}:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications
+
+  notifications_application:
+    user: dev:dev
+    container_name: notifications_application
+    build: ./docker_config/php
+    restart: always
+    volumes:
+      - ./${APP_DIR}:/application
+      - ./docker_config/php/www2.conf:/usr/local/etc/php-fpm.d/www2.conf
+    working_dir: /application
+    ports:
+      - "10375:9000"
+    depends_on:
+      notifications_postgresql:
+        condition: service_healthy
+      notifications_redis:
+        condition: service_healthy
+      notifications_rabbitmq:
+        condition: service_healthy
+    networks:
+      - notifications
+
+  notifications_worker_sms:
+    user: dev:dev
+    build: ./docker_config/php
+    restart: always
+    deploy:
+      replicas: ${WORKER_SMS_REPLICAS:-3}
+    volumes:
+      - ./${APP_DIR}:/application
+    working_dir: /application
+    command: php artisan queue:work rabbitmq --queue=notifications_sms_high,notifications_sms_low --max-time=3600 -v
+    depends_on:
+      notifications_postgresql:
+        condition: service_healthy
+      notifications_redis:
+        condition: service_healthy
+      notifications_rabbitmq:
+        condition: service_healthy
+    networks:
+      - notifications
+
+  notifications_worker_email:
+    user: dev:dev
+    build: ./docker_config/php
+    restart: always
+    deploy:
+      replicas: ${WORKER_EMAIL_REPLICAS:-3}
+    volumes:
+      - ./${APP_DIR}:/application
+    working_dir: /application
+    command: php artisan queue:work rabbitmq --queue=notifications_email_high,notifications_email_low --max-time=3600 -v
+    depends_on:
+      notifications_postgresql:
+        condition: service_healthy
+      notifications_redis:
+        condition: service_healthy
+      notifications_rabbitmq:
+        condition: service_healthy
+    networks:
+      - notifications
+
+  notifications_nginx:
+    container_name: notifications_nginx
+    restart: always
+    image: nginx:stable-alpine
+    volumes:
+      - ./${APP_DIR}:/application:ro
+      - ./docker_config/nginx/mime.types:/etc/nginx/mime.types
+      - ./docker_config/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "10376:80"
+    networks:
+      - notifications
+
+networks:
+  notifications:
+    driver: bridge
