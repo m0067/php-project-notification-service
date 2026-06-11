@@ -28,10 +28,12 @@ services:
     image: postgres:17.10-alpine
     restart: always
     environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
       PGPASSWORD: ${REPLICATION_PASSWORD}
     entrypoint: ["sh", "/usr/local/bin/replica-entrypoint.sh"]
     volumes:
       - ./docker_config/postgres/replica-entrypoint.sh:/usr/local/bin/replica-entrypoint.sh:ro
+      - ${POSTGRES_REPLICA_DIR}:/var/lib/postgresql/data
     ports:
       - "10371:5432"
     depends_on:
@@ -151,6 +153,9 @@ services:
       - ./docker_config/nginx/default.conf:/etc/nginx/conf.d/default.conf
     ports:
       - "10376:80"
+    depends_on:
+      notifications_application:
+        condition: service_started
     networks:
       - notifications
 
